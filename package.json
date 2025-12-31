@@ -8,7 +8,9 @@
     "start": "node src/index.js",
     "add": "node src/index.js add",
     "list": "node src/index.js list",
-    "remove": "node src/index.js remove"
+    "remove": "node src/index.js remove",
+    "history": "node src/index.js history",
+    "inv": "node src/index.js inv"
   },
   "keywords": [
     "steam",

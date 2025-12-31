@@ -20,6 +20,35 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS price_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER NOT NULL,
+    lowest_price TEXT,
+    median_price TEXT,
+    volume TEXT,
+    fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+  )
+`);
+
+db.exec(`CREATE INDEX IF NOT EXISTS idx_price_history_item_id ON price_history(item_id)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_price_history_fetched_at ON price_history(fetched_at)`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS inventory (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 1,
+    buy_price REAL NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+  )
+`);
+
+db.exec(`CREATE INDEX IF NOT EXISTS idx_inventory_item_id ON inventory(item_id)`);
+
 export function addItem(appId, marketHashName, displayName = null) {
   const stmt = db.prepare(`
     INSERT INTO items (app_id, market_hash_name, display_name)
@@ -50,6 +79,127 @@ export function getAllItems() {
 export function getItemById(id) {
   const stmt = db.prepare('SELECT * FROM items WHERE id = ?');
   return stmt.get(id);
+}
+
+export function savePriceSnapshot(itemId, lowestPrice, medianPrice, volume) {
+  const stmt = db.prepare(`
+    INSERT INTO price_history (item_id, lowest_price, median_price, volume)
+    VALUES (?, ?, ?, ?)
+  `);
+  return stmt.run(itemId, lowestPrice, medianPrice, volume);
+}
+
+export function getItemHistory(itemId, limit = 10) {
+  const stmt = db.prepare(`
+    SELECT ph.*, i.market_hash_name, i.display_name
+    FROM price_history ph
+    JOIN items i ON ph.item_id = i.id
+    WHERE ph.item_id = ?
+    ORDER BY ph.fetched_at DESC
+    LIMIT ?
+  `);
+  return stmt.all(itemId, limit);
+}
+
+export function getAllHistory(limit = 50) {
+  const stmt = db.prepare(`
+    SELECT ph.*, i.market_hash_name, i.display_name
+    FROM price_history ph
+    JOIN items i ON ph.item_id = i.id
+    ORDER BY ph.fetched_at DESC
+    LIMIT ?
+  `);
+  return stmt.all(limit);
+}
+
+export function getLatestPrices() {
+  const stmt = db.prepare(`
+    SELECT ph.*, i.market_hash_name, i.display_name, i.app_id
+    FROM price_history ph
+    JOIN items i ON ph.item_id = i.id
+    WHERE ph.id IN (
+      SELECT MAX(id) FROM price_history GROUP BY item_id
+    )
+    ORDER BY i.id
+  `);
+  return stmt.all();
+}
+
+export function addInventory(itemId, quantity, buyPrice) {
+  const stmt = db.prepare(`
+    INSERT INTO inventory (item_id, quantity, buy_price)
+    VALUES (?, ?, ?)
+  `);
+  const result = stmt.run(itemId, quantity, buyPrice);
+  return { success: true, id: result.lastInsertRowid };
+}
+
+export function updateInventory(id, quantity, buyPrice) {
+  const stmt = db.prepare(`
+    UPDATE inventory
+    SET quantity = ?, buy_price = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `);
+  const result = stmt.run(quantity, buyPrice, id);
+  return result.changes > 0;
+}
+
+export function removeInventory(id) {
+  const stmt = db.prepare('DELETE FROM inventory WHERE id = ?');
+  const result = stmt.run(id);
+  return result.changes > 0;
+}
+
+export function getInventoryById(id) {
+  const stmt = db.prepare(`
+    SELECT inv.*, i.market_hash_name, i.display_name, i.app_id
+    FROM inventory inv
+    JOIN items i ON inv.item_id = i.id
+    WHERE inv.id = ?
+  `);
+  return stmt.get(id);
+}
+
+export function getAllInventory() {
+  const stmt = db.prepare(`
+    SELECT
+      inv.id,
+      inv.item_id,
+      inv.quantity,
+      inv.buy_price,
+      inv.created_at,
+      inv.updated_at,
+      i.market_hash_name,
+      i.display_name,
+      i.app_id,
+      (inv.quantity * inv.buy_price) as cost_basis,
+      ph.lowest_price as current_price
+    FROM inventory inv
+    JOIN items i ON inv.item_id = i.id
+    LEFT JOIN price_history ph ON ph.item_id = inv.item_id
+      AND ph.id = (SELECT MAX(id) FROM price_history WHERE item_id = inv.item_id)
+    ORDER BY inv.id
+  `);
+  return stmt.all();
+}
+
+export function getInventorySummary() {
+  const inventory = getAllInventory();
+  return inventory.map(row => {
+    const currentPrice = row.current_price ? parseFloat(row.current_price.replace(/[^0-9.]/g, '')) : null;
+    const currentValue = currentPrice ? row.quantity * currentPrice : null;
+    const returnValue = currentValue !== null ? currentValue - row.cost_basis : null;
+    const returnPercent = returnValue !== null && row.cost_basis > 0
+      ? (returnValue / row.cost_basis) * 100
+      : null;
+
+    return {
+      ...row,
+      current_value: currentValue,
+      return_value: returnValue,
+      return_percent: returnPercent
+    };
+  });
 }
 
 export function close() {

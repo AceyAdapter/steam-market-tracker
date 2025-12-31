@@ -47,17 +47,29 @@ export async function fetchItemPrice(appId, marketHashName, currency = 1) {
   }
 }
 
-export async function fetchAllPrices(items, currency = 1) {
+export async function fetchAllPrices(items, currency = 1, onItemFetched = null) {
   const results = [];
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
+    const itemName = item.display_name || item.market_hash_name;
+    process.stdout.write(`  [${i + 1}/${items.length}] ID:${item.id} ${itemName}... `);
+
     const price = await fetchItemPrice(item.app_id, item.market_hash_name, currency);
 
-    results.push({
-      ...item,
-      price
-    });
+    if (price.success) {
+      console.log(`✓ ${price.lowest_price}`);
+    } else {
+      console.log(`✗ ${price.error}`);
+    }
+
+    const itemWithPrice = { ...item, price };
+    results.push(itemWithPrice);
+
+    // Save immediately via callback (so Ctrl+C doesn't lose progress)
+    if (onItemFetched) {
+      onItemFetched(itemWithPrice);
+    }
 
     // Add delay between requests (except for the last one)
     if (i < items.length - 1) {
