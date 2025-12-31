@@ -1,0 +1,24 @@
+{
+  "name": "steam-market-tracker",
+  "version": "1.0.0",
+  "description": "Track Steam Community Market prices for a list of items",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "add": "node src/index.js add",
+    "list": "node src/index.js list",
+    "remove": "node src/index.js remove"
+  },
+  "keywords": [
+    "steam",
+    "market",
+    "tracker",
+    "prices"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "cli-table3": "^0.6.5"
+  }
+}
