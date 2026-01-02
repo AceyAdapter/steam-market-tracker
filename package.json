@@ -10,6 +10,7 @@
     "list": "node src/index.js list",
     "remove": "node src/index.js remove",
     "history": "node src/index.js history",
+    "changes": "node src/index.js changes",
     "inv": "node src/index.js inv"
   },
   "keywords": [

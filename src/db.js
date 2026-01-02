@@ -125,6 +125,54 @@ export function getLatestPrices() {
   return stmt.all();
 }
 
+export function getPriceChanges() {
+  // Get the latest price for each item, plus prices closest to 24h, 7d, and 30d ago
+  const stmt = db.prepare(`
+    WITH latest AS (
+      SELECT
+        ph.*,
+        i.market_hash_name,
+        i.display_name
+      FROM price_history ph
+      JOIN items i ON ph.item_id = i.id
+      WHERE ph.id IN (SELECT MAX(id) FROM price_history GROUP BY item_id)
+    ),
+    prices_24h AS (
+      SELECT ph.item_id, ph.lowest_price, ph.fetched_at,
+        ROW_NUMBER() OVER (PARTITION BY ph.item_id ORDER BY ABS(strftime('%s', ph.fetched_at) - strftime('%s', 'now', '-1 day'))) as rn
+      FROM price_history ph
+      WHERE ph.fetched_at <= datetime('now', '-1 day', '+1 hour')
+    ),
+    prices_7d AS (
+      SELECT ph.item_id, ph.lowest_price, ph.fetched_at,
+        ROW_NUMBER() OVER (PARTITION BY ph.item_id ORDER BY ABS(strftime('%s', ph.fetched_at) - strftime('%s', 'now', '-7 days'))) as rn
+      FROM price_history ph
+      WHERE ph.fetched_at <= datetime('now', '-7 days', '+1 day')
+    ),
+    prices_30d AS (
+      SELECT ph.item_id, ph.lowest_price, ph.fetched_at,
+        ROW_NUMBER() OVER (PARTITION BY ph.item_id ORDER BY ABS(strftime('%s', ph.fetched_at) - strftime('%s', 'now', '-30 days'))) as rn
+      FROM price_history ph
+      WHERE ph.fetched_at <= datetime('now', '-30 days', '+2 days')
+    )
+    SELECT
+      l.item_id,
+      l.market_hash_name,
+      l.display_name,
+      l.lowest_price as current_price,
+      l.fetched_at as current_time,
+      p24.lowest_price as price_24h,
+      p7.lowest_price as price_7d,
+      p30.lowest_price as price_30d
+    FROM latest l
+    LEFT JOIN prices_24h p24 ON l.item_id = p24.item_id AND p24.rn = 1
+    LEFT JOIN prices_7d p7 ON l.item_id = p7.item_id AND p7.rn = 1
+    LEFT JOIN prices_30d p30 ON l.item_id = p30.item_id AND p30.rn = 1
+    ORDER BY l.item_id
+  `);
+  return stmt.all();
+}
+
 export function addInventory(itemId, quantity, buyPrice) {
   const stmt = db.prepare(`
     INSERT INTO inventory (item_id, quantity, buy_price)

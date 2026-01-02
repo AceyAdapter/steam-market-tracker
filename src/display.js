@@ -109,6 +109,56 @@ export function displayHistory(history) {
   console.log(table.toString());
 }
 
+export function displayPriceChanges(changes) {
+  console.log('\nPrice Changes:\n');
+
+  if (changes.length === 0) {
+    console.log('No price history yet. Run a price fetch first.');
+    return;
+  }
+
+  const table = new Table({
+    head: ['ID', 'Item', 'Current', '24h', '7d', '30d'],
+    colWidths: [5, 32, 11, 11, 11, 11],
+    style: {
+      head: ['cyan']
+    }
+  });
+
+  const parsePrice = (priceStr) => {
+    if (!priceStr) return null;
+    return parseFloat(priceStr.replace(/[^0-9.]/g, ''));
+  };
+
+  const calcChange = (current, previous) => {
+    if (current === null || previous === null) return '-';
+    const percent = previous > 0 ? ((current - previous) / previous) * 100 : 0;
+    const prefix = percent >= 0 ? '+' : '';
+    return `${prefix}${percent.toFixed(1)}%`;
+  };
+
+  for (const row of changes) {
+    const name = row.display_name || row.market_hash_name;
+    const truncatedName = name.length > 29 ? name.slice(0, 26) + '...' : name;
+
+    const current = parsePrice(row.current_price);
+    const price24h = parsePrice(row.price_24h);
+    const price7d = parsePrice(row.price_7d);
+    const price30d = parsePrice(row.price_30d);
+
+    table.push([
+      row.item_id,
+      truncatedName,
+      row.current_price || '-',
+      calcChange(current, price24h),
+      calcChange(current, price7d),
+      calcChange(current, price30d)
+    ]);
+  }
+
+  console.log(table.toString());
+}
+
 export function displayInventory(inventory) {
   console.log('\nInventory:\n');
 

@@ -1,6 +1,6 @@
-import { addItem, removeItem, getAllItems, getItemById, savePriceSnapshot, getItemHistory, getAllHistory, getLatestPrices, addInventory, updateInventory, removeInventory, getInventorySummary, close } from './db.js';
+import { addItem, removeItem, getAllItems, getItemById, savePriceSnapshot, getItemHistory, getAllHistory, getLatestPrices, getPriceChanges, addInventory, updateInventory, removeInventory, getInventorySummary, close } from './db.js';
 import { fetchAllPrices } from './steam-api.js';
-import { displayPriceTable, displayItemList, displayHistory, displayInventory } from './display.js';
+import { displayPriceTable, displayItemList, displayHistory, displayPriceChanges, displayInventory } from './display.js';
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -65,6 +65,7 @@ Usage:
   node src/index.js list                      List all tracked items
   node src/index.js history                   Show price history for all items
   node src/index.js history <id>              Show price history for a specific item
+  node src/index.js changes                   Show price changes since last snapshot
 
 Inventory:
   node src/index.js inv                       Show inventory with cost basis and returns
@@ -160,6 +161,12 @@ async function main() {
             displayHistory(history);
           }
         }
+        break;
+      }
+
+      case 'changes': {
+        const changes = getPriceChanges();
+        displayPriceChanges(changes);
         break;
       }
 
