@@ -1,8 +1,16 @@
 const STEAM_API_BASE = 'https://steamcommunity.com/market/priceoverview/';
-const DELAY_MS = 1500; // Delay between requests to avoid rate limiting
+const BATCH_SIZE = 20; // Steam allows ~20 requests per batch
+const BATCH_COOLDOWN_MS = 60000; // Wait 60s after batch completes
+const RETRY_DELAY_MS = 10000; // Wait 10s on 429 error
+const MIN_DELAY_MS = 100; // Small delay between requests
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function formatTime(ms) {
+  const seconds = Math.ceil(ms / 1000);
+  return `${seconds}s`;
 }
 
 export async function fetchItemPrice(appId, marketHashName, currency = 1) {
@@ -20,7 +28,8 @@ export async function fetchItemPrice(appId, marketHashName, currency = 1) {
     if (!response.ok) {
       return {
         success: false,
-        error: `HTTP ${response.status}`
+        error: `HTTP ${response.status}`,
+        rateLimited: response.status === 429
       };
     }
 
@@ -49,13 +58,29 @@ export async function fetchItemPrice(appId, marketHashName, currency = 1) {
 
 export async function fetchAllPrices(items, currency = 1, onItemFetched = null) {
   const results = [];
+  let batchCount = 0;
+  const totalBatches = Math.ceil(items.length / BATCH_SIZE);
 
   for (let i = 0; i < items.length; i++) {
+    // Show batch header at start of new batch
+    if (batchCount === 0 && totalBatches > 1) {
+      const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
+      console.log(`\n  --- Batch ${currentBatch}/${totalBatches} ---`);
+    }
+
     const item = items[i];
     const itemName = item.display_name || item.market_hash_name;
     process.stdout.write(`  [${i + 1}/${items.length}] ID:${item.id} ${itemName}... `);
 
-    const price = await fetchItemPrice(item.app_id, item.market_hash_name, currency);
+    let price = await fetchItemPrice(item.app_id, item.market_hash_name, currency);
+
+    // Retry on rate limit
+    while (price.rateLimited) {
+      console.log(`⏳ Rate limited, waiting ${formatTime(RETRY_DELAY_MS)}...`);
+      await sleep(RETRY_DELAY_MS);
+      process.stdout.write(`  [${i + 1}/${items.length}] ID:${item.id} ${itemName}... `);
+      price = await fetchItemPrice(item.app_id, item.market_hash_name, currency);
+    }
 
     if (price.success) {
       console.log(`✓ ${price.lowest_price}`);
@@ -71,9 +96,15 @@ export async function fetchAllPrices(items, currency = 1, onItemFetched = null) 
       onItemFetched(itemWithPrice);
     }
 
-    // Add delay between requests (except for the last one)
-    if (i < items.length - 1) {
-      await sleep(DELAY_MS);
+    batchCount++;
+
+    // After completing a batch, wait before next batch
+    if (batchCount >= BATCH_SIZE && i < items.length - 1) {
+      console.log(`\n  Batch complete. Waiting ${formatTime(BATCH_COOLDOWN_MS)} before next batch...`);
+      await sleep(BATCH_COOLDOWN_MS);
+      batchCount = 0;
+    } else if (i < items.length - 1) {
+      await sleep(MIN_DELAY_MS);
     }
   }
 

@@ -40,7 +40,7 @@ This is a Node.js CLI application (ES modules) that tracks Steam Community Marke
 **Core modules:**
 
 - `src/index.js` - CLI entry point, command routing
-- `src/steam-api.js` - Steam Market API client with 1.5s delay between requests (Steam rate limits after ~20 requests)
+- `src/steam-api.js` - Steam Market API client with batch rate limiting (20 requests per 30s window)
 - `src/db.js` - SQLite database layer using better-sqlite3
 - `src/display.js` - CLI table output formatting using cli-table3
 
