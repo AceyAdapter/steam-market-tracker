@@ -1,10 +1,21 @@
 import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { mkdirSync, existsSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const dbPath = join(__dirname, '..', 'data', 'tracker.db');
+
+// Allow configurable data directory via environment variable
+const dataDir = process.env.STEAM_TRACKER_DATA || join(__dirname, '..', 'data');
+export const DATA_DIR = dataDir;
+
+// Ensure data directory exists
+if (!existsSync(dataDir)) {
+  mkdirSync(dataDir, { recursive: true });
+}
+
+const dbPath = join(dataDir, 'tracker.db');
 
 const db = new Database(dbPath);
 
@@ -305,6 +316,47 @@ export function getPortfolioTimeline() {
 
 export function close() {
   db.close();
+}
+
+// API helper functions
+export function getItemCount() {
+  const stmt = db.prepare('SELECT COUNT(*) as count FROM items');
+  return stmt.get().count;
+}
+
+export function getLatestFetchTime() {
+  const stmt = db.prepare('SELECT MAX(fetched_at) as latest FROM price_history');
+  const result = stmt.get();
+  return result.latest || null;
+}
+
+export function getPortfolioStats() {
+  const inventory = getInventorySummary();
+
+  let totalItems = 0;
+  let totalCostBasis = 0;
+  let totalValue = 0;
+
+  for (const row of inventory) {
+    totalItems += row.quantity;
+    totalCostBasis += row.cost_basis;
+    if (row.current_value !== null) {
+      totalValue += row.current_value;
+    }
+  }
+
+  const returnValue = totalValue - totalCostBasis;
+  const returnPercent = totalCostBasis > 0 ? (returnValue / totalCostBasis) * 100 : 0;
+
+  return {
+    totalItems,
+    totalCostBasis,
+    totalValue,
+    returnValue,
+    returnPercent,
+    trackedItemCount: getItemCount(),
+    lastFetch: getLatestFetchTime()
+  };
 }
 
 export default db;

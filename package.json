@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
+    "server": "node src/server.js",
     "add": "node src/index.js add",
     "list": "node src/index.js list",
     "remove": "node src/index.js remove",
@@ -23,6 +24,8 @@
   "dependencies": {
     "asciichart": "^1.5.25",
     "better-sqlite3": "^11.7.0",
-    "cli-table3": "^0.6.5"
+    "cli-table3": "^0.6.5",
+    "express": "^5.2.1",
+    "node-cron": "^4.2.1"
   }
 }
