@@ -1,6 +1,6 @@
-import { addItem, removeItem, getAllItems, getItemById, savePriceSnapshot, getItemHistory, getAllHistory, getLatestPrices, getPriceChanges, addInventory, updateInventory, removeInventory, getInventorySummary, close } from './db.js';
+import { addItem, removeItem, getAllItems, getItemById, savePriceSnapshot, getItemHistory, getAllHistory, getLatestPrices, getPriceChanges, addInventory, updateInventory, removeInventory, getInventorySummary, getPortfolioTimeline, close } from './db.js';
 import { fetchAllPrices } from './steam-api.js';
-import { displayPriceTable, displayItemList, displayHistory, displayPriceChanges, displayInventory } from './display.js';
+import { displayPriceTable, displayItemList, displayHistory, displayPriceChanges, displayInventory, displayPortfolioChart } from './display.js';
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -72,6 +72,7 @@ Inventory:
   node src/index.js inv add <item_id> <qty> <buy_price>   Add item to inventory
   node src/index.js inv update <inv_id> <qty> <buy_price> Update inventory entry
   node src/index.js inv remove <inv_id>       Remove inventory entry
+  node src/index.js inv chart                 Show portfolio value chart over time
 
 Examples:
   node src/index.js add 730 "AK-47 | Redline (Field-Tested)"
@@ -232,6 +233,12 @@ async function main() {
             } else {
               console.error(`No inventory entry found with ID ${invId}`);
             }
+            break;
+          }
+
+          case 'chart': {
+            const timeline = getPortfolioTimeline();
+            displayPortfolioChart(timeline);
             break;
           }
 

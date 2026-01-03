@@ -1,4 +1,5 @@
 import Table from 'cli-table3';
+import asciichart from 'asciichart';
 
 export function displayPriceTable(itemsWithPrices) {
   const date = new Date().toISOString().split('T')[0];
@@ -225,4 +226,62 @@ export function displayInventory(inventory) {
   console.log(`\nTotal Cost Basis: $${totalCostBasis.toFixed(2)}`);
   console.log(`Total Value:      $${totalValue.toFixed(2)}`);
   console.log(`Total Return:     ${prefix}$${totalReturn.toFixed(2)} (${prefix}${totalPercent.toFixed(1)}%)`);
+}
+
+export function displayPortfolioChart(timeline) {
+  if (timeline.length === 0) {
+    console.log('\nNo portfolio data available. Add inventory items and fetch prices first.');
+    return;
+  }
+
+  console.log('\nPortfolio Value vs Cost Basis Over Time\n');
+
+  const spentSeries = timeline.map(t => t.spent);
+  const valueSeries = timeline.map(t => t.value);
+
+  // Determine chart width based on terminal width
+  const termWidth = process.stdout.columns || 80;
+  const chartWidth = Math.min(termWidth - 15, timeline.length);
+
+  // Downsample if we have more data points than chart width
+  const downsample = (series, targetLen) => {
+    if (series.length <= targetLen) return series;
+    const step = series.length / targetLen;
+    const result = [];
+    for (let i = 0; i < targetLen; i++) {
+      result.push(series[Math.floor(i * step)]);
+    }
+    return result;
+  };
+
+  const spent = downsample(spentSeries, chartWidth);
+  const value = downsample(valueSeries, chartWidth);
+
+  const config = {
+    height: 15,
+    colors: [
+      asciichart.red,    // Spent (cost basis)
+      asciichart.green   // Value (portfolio value)
+    ],
+    format: (x) => ('$' + x.toFixed(0)).padStart(8)
+  };
+
+  console.log(asciichart.plot([spent, value], config));
+
+  // Legend
+  console.log('\n  \x1b[31m────\x1b[0m Cost Basis    \x1b[32m────\x1b[0m Portfolio Value');
+
+  // Date range
+  const startDate = new Date(timeline[0].date).toLocaleDateString();
+  const endDate = new Date(timeline[timeline.length - 1].date).toLocaleDateString();
+  console.log(`\n  ${startDate} → ${endDate} (${timeline.length} data points)`);
+
+  // Summary
+  const latestSpent = spentSeries[spentSeries.length - 1];
+  const latestValue = valueSeries[valueSeries.length - 1];
+  const returnVal = latestValue - latestSpent;
+  const returnPct = latestSpent > 0 ? (returnVal / latestSpent) * 100 : 0;
+  const prefix = returnVal >= 0 ? '+' : '';
+
+  console.log(`\n  Current: $${latestSpent.toFixed(2)} spent → $${latestValue.toFixed(2)} value (${prefix}${returnPct.toFixed(1)}%)`);
 }

@@ -250,6 +250,59 @@ export function getInventorySummary() {
   });
 }
 
+export function getPortfolioTimeline() {
+  // Get distinct timestamps from price_history
+  const timestamps = db.prepare(`
+    SELECT DISTINCT fetched_at
+    FROM price_history
+    ORDER BY fetched_at ASC
+  `).all().map(r => r.fetched_at);
+
+  if (timestamps.length === 0) return [];
+
+  const timeline = [];
+
+  for (const timestamp of timestamps) {
+    // Get inventory entries that existed at this timestamp
+    const inventoryAtTime = db.prepare(`
+      SELECT inv.item_id, inv.quantity, inv.buy_price
+      FROM inventory inv
+      WHERE inv.created_at <= ?
+    `).all(timestamp);
+
+    if (inventoryAtTime.length === 0) continue;
+
+    let spent = 0;
+    let value = 0;
+
+    for (const inv of inventoryAtTime) {
+      spent += inv.quantity * inv.buy_price;
+
+      // Get the most recent price for this item at or before this timestamp
+      const priceRow = db.prepare(`
+        SELECT lowest_price
+        FROM price_history
+        WHERE item_id = ? AND fetched_at <= ?
+        ORDER BY fetched_at DESC
+        LIMIT 1
+      `).get(inv.item_id, timestamp);
+
+      if (priceRow && priceRow.lowest_price) {
+        const price = parseFloat(priceRow.lowest_price.replace(/[^0-9.]/g, ''));
+        value += inv.quantity * price;
+      }
+    }
+
+    timeline.push({
+      date: timestamp,
+      spent,
+      value
+    });
+  }
+
+  return timeline;
+}
+
 export function close() {
   db.close();
 }
