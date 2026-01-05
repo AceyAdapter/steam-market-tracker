@@ -1,7 +1,7 @@
 const STEAM_API_BASE = 'https://steamcommunity.com/market/priceoverview/';
 const BATCH_SIZE = 20; // Steam allows ~20 requests per batch
 const BATCH_COOLDOWN_MS = 60000; // Wait 60s after batch completes
-const RETRY_DELAY_MS = 10000; // Wait 10s on 429 error
+const RETRY_DELAY_MS = 60000; // Wait 60s on 429 error
 const MIN_DELAY_MS = 100; // Small delay between requests
 
 function sleep(ms) {
