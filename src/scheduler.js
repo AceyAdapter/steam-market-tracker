@@ -4,7 +4,7 @@ import { getAllItems, savePriceSnapshot, DATA_DIR } from './db.js';
 import { fetchAllPrices } from './steam-api.js';
 
 const LOCK_FILE = join(DATA_DIR, '.fetch-lock');
-const STALE_LOCK_MS = 30 * 60 * 1000; // 30 minutes
+const STALE_LOCK_MS = 90 * 60 * 1000; // 90 minutes (fetches can take 45+ min with rate limiting)
 
 export function acquireLock() {
   try {
