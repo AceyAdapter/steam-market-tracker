@@ -3,6 +3,7 @@ const BATCH_SIZE = 20; // Steam allows ~20 requests per batch
 const BATCH_COOLDOWN_MS = 60000; // Wait 60s after batch completes
 const RETRY_DELAY_MS = 60000; // Wait 60s on 429 error
 const MIN_DELAY_MS = 100; // Small delay between requests
+const MAX_RATE_LIMIT_RETRIES = 3; // Stop after 3 consecutive rate limits
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -74,12 +75,20 @@ export async function fetchAllPrices(items, currency = 1, onItemFetched = null) 
 
     let price = await fetchItemPrice(item.app_id, item.market_hash_name, currency);
 
-    // Retry on rate limit
-    while (price.rateLimited) {
-      console.log(`⏳ Rate limited, waiting ${formatTime(RETRY_DELAY_MS)}...`);
+    // Retry on rate limit (up to MAX_RATE_LIMIT_RETRIES times)
+    let rateLimitRetries = 0;
+    while (price.rateLimited && rateLimitRetries < MAX_RATE_LIMIT_RETRIES) {
+      rateLimitRetries++;
+      console.log(`⏳ Rate limited (attempt ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES}), waiting ${formatTime(RETRY_DELAY_MS)}...`);
       await sleep(RETRY_DELAY_MS);
       process.stdout.write(`  [${i + 1}/${items.length}] ID:${item.id} ${itemName}... `);
       price = await fetchItemPrice(item.app_id, item.market_hash_name, currency);
+    }
+
+    // If still rate limited after max retries, stop the entire fetch
+    if (price.rateLimited) {
+      console.log(`✗ Rate limited. Stopping fetch after ${MAX_RATE_LIMIT_RETRIES} attempts.`);
+      return results;
     }
 
     if (price.success) {
