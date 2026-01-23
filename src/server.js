@@ -4,6 +4,7 @@ import {
   getAllItems,
   getItemById,
   getItemHistory,
+  getItemDailyHistory,
   getLatestPrices,
   getInventorySummary,
   getPortfolioStats,
@@ -100,18 +101,18 @@ app.get('/api/items/:id', (req, res) => {
   }
 });
 
-// Get item price history
+// Get item price history (daily - one price per day for charting)
 app.get('/api/items/:id/history', (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const limit = parseInt(req.query.limit, 10) || 50;
+    const limit = parseInt(req.query.limit, 10) || 365;
 
     const item = getItemById(id);
     if (!item) {
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    const history = getItemHistory(id, limit);
+    const history = getItemDailyHistory(id, limit);
 
     res.json({
       item: {
@@ -120,6 +121,7 @@ app.get('/api/items/:id/history', (req, res) => {
         displayName: item.display_name
       },
       history: history.map(h => ({
+        date: h.price_date,
         lowestPrice: h.lowest_price,
         medianPrice: h.median_price,
         volume: h.volume,

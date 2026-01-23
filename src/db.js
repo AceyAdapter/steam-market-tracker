@@ -112,6 +112,41 @@ export function getItemHistory(itemId, limit = 10) {
   return stmt.all(itemId, limit);
 }
 
+export function getItemDailyHistory(itemId, limit = 365) {
+  // Returns one price per day: the last price of each day
+  // For today: returns the most recent price
+  // For previous days: returns the final price recorded that day
+  const stmt = db.prepare(`
+    WITH daily_last AS (
+      SELECT
+        ph.*,
+        DATE(ph.fetched_at) as price_date,
+        ROW_NUMBER() OVER (
+          PARTITION BY DATE(ph.fetched_at)
+          ORDER BY ph.fetched_at DESC
+        ) as rn
+      FROM price_history ph
+      WHERE ph.item_id = ?
+    )
+    SELECT
+      dl.id,
+      dl.item_id,
+      dl.lowest_price,
+      dl.median_price,
+      dl.volume,
+      dl.fetched_at,
+      dl.price_date,
+      i.market_hash_name,
+      i.display_name
+    FROM daily_last dl
+    JOIN items i ON dl.item_id = i.id
+    WHERE dl.rn = 1
+    ORDER BY dl.price_date ASC
+    LIMIT ?
+  `);
+  return stmt.all(itemId, limit);
+}
+
 export function getAllHistory(limit = 50) {
   const stmt = db.prepare(`
     SELECT ph.*, i.market_hash_name, i.display_name
